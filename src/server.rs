@@ -1,7 +1,8 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use std::convert::TryFrom;
-use crate::http::Request;
-use std::net::TcpListener;
+use crate::http::{Request, StatusCode};
+use std::net::{TcpListener };
+use crate::http::response::Response;
 
 pub struct Server {
     addr: String,
@@ -32,6 +33,9 @@ impl Server {
                             match Request::try_from(&buffer[..]) {
                                 Ok(request) => {
                                     dbg!(request);
+                                    let response = Response::new(StatusCode::Ok, Some("<h1>It works!</h1>".to_string()));
+                                    write!(&stream,"{}", response).expect("TODO: panic message");
+                                    dbg!(response);
                                 }
                                 Err(e) => {
                                     println!("Failed to parse a request: {}", e)
