@@ -1,8 +1,14 @@
-use std::io::{Read, Write};
+use std::io::{Read};
 use std::convert::TryFrom;
 use crate::http::{Request, StatusCode};
-use std::net::{TcpListener };
+use std::net::{TcpListener};
+use crate::http::request::HttpParseError;
 use crate::http::response::Response;
+
+pub trait Handler {
+    fn handle_request(&mut self, request: &Request) -> Response;
+    fn handle_bad_request(&mut self, e: &HttpParseError) -> Response;
+}
 
 pub struct Server {
     addr: String,
@@ -18,7 +24,7 @@ impl Server {
 
     // self is the equivalent of this in java
     // self also indicates that the function requires instanciation
-    pub fn run(self) {
+    pub fn run(self, mut handler: impl Handler) {
         println!("Listening on port {}", self.addr);
 
         let listener = TcpListener::bind(&self.addr).unwrap();
@@ -30,17 +36,20 @@ impl Server {
                     let mut buffer = [0; 1024];
                     match stream.read(&mut buffer) {
                         Ok(_) => {
-                            match Request::try_from(&buffer[..]) {
+                            let response = match Request::try_from(&buffer[..]) {
                                 Ok(request) => {
-                                    dbg!(request);
-                                    let response = Response::new(StatusCode::Ok, Some("<h1>It works!</h1>".to_string()));
-                                    write!(&stream,"{}", response).expect("TODO: panic message");
-                                    dbg!(response);
+                                    dbg!(&request);
+                                    handler.handle_request(&request)
                                 }
                                 Err(e) => {
-                                    println!("Failed to parse a request: {}", e)
+                                    println!("Failed to parse a request: {}", &e);
+                                    handler.handle_bad_request(&e)
                                 }
+                            };
+                            if let Err(e) = response.send(&mut stream) {
+                                println!("Failed to send Response: {}", e)
                             }
+                            dbg!(response);
                         }
                         Err(e) => {
                             println!("Failed to read from connection: {}", e)
